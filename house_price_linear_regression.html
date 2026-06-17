@@ -1,0 +1,261 @@
+
+<h2 class="sr-only">Linear regression model predicting house prices from square footage, bedrooms, and bathrooms</h2>
+
+<div style="padding: 1rem 0;">
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 1.5rem;" id="metrics-grid">
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">R² score</p>
+    <p style="font-size: 24px; font-weight: 500; margin: 0;" id="r2-val">—</p>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">RMSE</p>
+    <p style="font-size: 24px; font-weight: 500; margin: 0;" id="rmse-val">—</p>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">MAE</p>
+    <p style="font-size: 24px; font-weight: 500; margin: 0;" id="mae-val">—</p>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">Samples</p>
+    <p style="font-size: 24px; font-weight: 500; margin: 0;">1000</p>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem;">
+
+  <div>
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px;">Actual vs predicted prices</p>
+    <div style="position: relative; height: 240px;">
+      <canvas id="scatter-chart" role="img" aria-label="Scatter plot of actual vs predicted house prices showing correlation"></canvas>
+    </div>
+  </div>
+
+  <div>
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px;">Residuals distribution</p>
+    <div style="position: relative; height: 240px;">
+      <canvas id="residual-chart" role="img" aria-label="Histogram of prediction residuals showing normal distribution"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem;">
+
+  <div>
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px;">Price vs square footage</p>
+    <div style="position: relative; height: 220px;">
+      <canvas id="sqft-chart" role="img" aria-label="Scatter plot of price vs square footage with regression line"></canvas>
+    </div>
+  </div>
+
+  <div>
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px;">Feature coefficients</p>
+    <div style="position: relative; height: 220px;">
+      <canvas id="coef-chart" role="img" aria-label="Bar chart showing coefficients of the linear regression model"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<div style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem; margin-bottom: 1.5rem;">
+  <p style="font-size: 14px; font-weight: 500; margin: 0 0 12px;">Model equation</p>
+  <p style="font-family: var(--font-mono); font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px;" id="equation">Computing...</p>
+  <p style="font-size: 12px; color: var(--color-text-tertiary); margin: 0;">Trained on 80% of data · Evaluated on 20% test set</p>
+</div>
+
+<div style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem;">
+  <p style="font-size: 14px; font-weight: 500; margin: 0 0 12px;">Price predictor</p>
+  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+    <div>
+      <label style="font-size: 12px; color: var(--color-text-secondary);">Sq footage</label>
+      <input type="number" id="inp-sqft" value="2000" min="500" max="6000" step="100" style="width: 100%; margin-top: 4px; box-sizing: border-box;">
+    </div>
+    <div>
+      <label style="font-size: 12px; color: var(--color-text-secondary);">Bedrooms</label>
+      <input type="number" id="inp-beds" value="3" min="1" max="8" style="width: 100%; margin-top: 4px; box-sizing: border-box;">
+    </div>
+    <div>
+      <label style="font-size: 12px; color: var(--color-text-secondary);">Bathrooms</label>
+      <input type="number" id="inp-baths" value="2" min="1" max="6" step="0.5" style="width: 100%; margin-top: 4px; box-sizing: border-box;">
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <button onclick="predict()" style="padding: 8px 20px; cursor: pointer;">Predict price ↗</button>
+    <p style="font-size: 20px; font-weight: 500; margin: 0;" id="pred-out"></p>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+function seeded(s) {
+  let x = Math.sin(s) * 10000;
+  return x - Math.floor(x);
+}
+
+function genData(n) {
+  const data = [];
+  for (let i = 0; i < n; i++) {
+    const sqft = 800 + seeded(i * 7 + 1) * 3200;
+    const beds = Math.round(1 + seeded(i * 7 + 2) * 5);
+    const baths = Math.round((1 + seeded(i * 7 + 3) * 4) * 2) / 2;
+    const noise = (seeded(i * 7 + 4) - 0.5) * 60000;
+    const price = 50000 + sqft * 120 + beds * 15000 + baths * 20000 + noise;
+    data.push({ sqft, beds, baths, price });
+  }
+  return data;
+}
+
+function linReg(X, y) {
+  const n = X.length;
+  const ncols = X[0].length;
+  const Xt = X[0].map((_, c) => X.map(r => r[c]));
+  function mmul(A, B) {
+    return A.map(row => B[0].map((_, c) => row.reduce((s, v, r) => s + v * B[r][c], 0)));
+  }
+  function mT(A) { return A[0].map((_, c) => A.map(r => r[c])); }
+  function minv(m) {
+    const n = m.length;
+    const aug = m.map((r, i) => [...r, ...Array(n).fill(0).map((_, j) => j === i ? 1 : 0)]);
+    for (let c = 0; c < n; c++) {
+      let max = c; for (let r = c + 1; r < n; r++) if (Math.abs(aug[r][c]) > Math.abs(aug[max][c])) max = r;
+      [aug[c], aug[max]] = [aug[max], aug[c]];
+      const piv = aug[c][c];
+      for (let j = 0; j < 2 * n; j++) aug[c][j] /= piv;
+      for (let r = 0; r < n; r++) if (r !== c) { const f = aug[r][c]; for (let j = 0; j < 2 * n; j++) aug[r][j] -= f * aug[c][j]; }
+    }
+    return aug.map(r => r.slice(n));
+  }
+  const Xm = X.map(r => [1, ...r]);
+  const XtX = mmul(mT(Xm), Xm);
+  const Xty = mT(Xm).map(row => [row.reduce((s, v, i) => s + v * y[i], 0)]);
+  const inv = minv(XtX);
+  const beta = mmul(inv, Xty).map(r => r[0]);
+  return beta;
+}
+
+const all = genData(1000);
+const split = 800;
+const train = all.slice(0, split);
+const test = all.slice(split);
+
+const Xtrain = train.map(d => [d.sqft, d.beds, d.baths]);
+const ytrain = train.map(d => d.price);
+const Xtest = test.map(d => [d.sqft, d.beds, d.baths]);
+const ytest = test.map(d => d.price);
+
+const beta = linReg(Xtrain, ytrain);
+
+function predictOne(sqft, beds, baths) {
+  return beta[0] + beta[1] * sqft + beta[2] * beds + beta[3] * baths;
+}
+
+const ypred = Xtest.map(x => beta[0] + beta[1] * x[0] + beta[2] * x[1] + beta[3] * x[2]);
+const residuals = ytest.map((y, i) => y - ypred[i]);
+
+const yMean = ytest.reduce((a, b) => a + b, 0) / ytest.length;
+const ssTot = ytest.reduce((s, y) => s + (y - yMean) ** 2, 0);
+const ssRes = residuals.reduce((s, r) => s + r * r, 0);
+const r2 = 1 - ssRes / ssTot;
+const rmse = Math.sqrt(ssRes / ytest.length);
+const mae = residuals.reduce((s, r) => s + Math.abs(r), 0) / residuals.length;
+
+document.getElementById('r2-val').textContent = r2.toFixed(3);
+document.getElementById('rmse-val').textContent = '$' + Math.round(rmse / 1000) + 'k';
+document.getElementById('mae-val').textContent = '$' + Math.round(mae / 1000) + 'k';
+document.getElementById('equation').textContent =
+  `Price = ${Math.round(beta[0]).toLocaleString()} + ${beta[1].toFixed(1)} × sqft + ${Math.round(beta[2]).toLocaleString()} × beds + ${Math.round(beta[3]).toLocaleString()} × baths`;
+
+const sample = test.slice(0, 80);
+const sActual = sample.map(d => d.price);
+const sPred = sample.map(d => predictOne(d.sqft, d.beds, d.baths));
+const minP = Math.min(...sActual, ...sPred);
+const maxP = Math.max(...sActual, ...sPred);
+
+new Chart(document.getElementById('scatter-chart'), {
+  type: 'scatter',
+  data: {
+    datasets: [
+      { label: 'Predictions', data: sActual.map((y, i) => ({ x: y, y: sPred[i] })), backgroundColor: 'rgba(55,138,221,0.45)', pointRadius: 4, pointStyle: 'circle' },
+      { label: 'Perfect fit', data: [{ x: minP, y: minP }, { x: maxP, y: maxP }], type: 'line', borderColor: '#E24B4A', borderDash: [6, 3], borderWidth: 1.5, pointRadius: 0, fill: false }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Actual ($)', font: { size: 11 } }, ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k', maxTicksLimit: 5 } },
+      y: { title: { display: true, text: 'Predicted ($)', font: { size: 11 } }, ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k', maxTicksLimit: 5 } }
+    }
+  }
+});
+
+const bins = 20;
+const rMin = Math.min(...residuals), rMax = Math.max(...residuals);
+const bw = (rMax - rMin) / bins;
+const counts = Array(bins).fill(0);
+residuals.forEach(r => { let b = Math.floor((r - rMin) / bw); if (b >= bins) b = bins - 1; counts[b]++; });
+const labels = counts.map((_, i) => Math.round((rMin + i * bw) / 1000) + 'k');
+
+new Chart(document.getElementById('residual-chart'), {
+  type: 'bar',
+  data: { labels, datasets: [{ label: 'Count', data: counts, backgroundColor: 'rgba(29,158,117,0.6)', borderColor: 'rgba(29,158,117,0.9)', borderWidth: 1 }] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Residual ($)', font: { size: 11 } }, ticks: { maxTicksLimit: 6 } },
+      y: { title: { display: true, text: 'Frequency', font: { size: 11 } } }
+    }
+  }
+});
+
+const sqftSample = train.filter((_, i) => i % 4 === 0).slice(0, 80);
+sqftSample.sort((a, b) => a.sqft - b.sqft);
+const sqftLine = [{ sqft: 800, price: predictOne(800, 3, 2) }, { sqft: 4000, price: predictOne(4000, 3, 2) }];
+new Chart(document.getElementById('sqft-chart'), {
+  type: 'scatter',
+  data: {
+    datasets: [
+      { label: 'Houses', data: sqftSample.map(d => ({ x: d.sqft, y: d.price })), backgroundColor: 'rgba(127,119,221,0.45)', pointRadius: 3 },
+      { label: 'Regression line', data: sqftLine.map(d => ({ x: d.sqft, y: d.price })), type: 'line', borderColor: '#D85A30', borderWidth: 2, pointRadius: 0, fill: false }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Sq footage', font: { size: 11 } }, ticks: { maxTicksLimit: 5 } },
+      y: { title: { display: true, text: 'Price ($)', font: { size: 11 } }, ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k', maxTicksLimit: 5 } }
+    }
+  }
+});
+
+new Chart(document.getElementById('coef-chart'), {
+  type: 'bar',
+  data: {
+    labels: ['Sq footage (per ft²)', 'Bedrooms', 'Bathrooms'],
+    datasets: [{ label: 'Coefficient', data: [beta[1].toFixed(2), Math.round(beta[2]), Math.round(beta[3])], backgroundColor: ['#378ADD', '#1D9E75', '#D85A30'], borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Impact on price ($)', font: { size: 11 } }, ticks: { maxTicksLimit: 5 } },
+      y: { ticks: { font: { size: 11 } } }
+    }
+  }
+});
+
+function predict() {
+  const sqft = parseFloat(document.getElementById('inp-sqft').value);
+  const beds = parseFloat(document.getElementById('inp-beds').value);
+  const baths = parseFloat(document.getElementById('inp-baths').value);
+  const p = predictOne(sqft, beds, baths);
+  document.getElementById('pred-out').textContent = '$' + Math.round(p).toLocaleString();
+}
+predict();
+</script>
